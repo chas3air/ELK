@@ -1,0 +1,39 @@
+services:
+  app:
+    build:
+      context: ./app
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./app/log:/app/log
+
+  filebeat:
+    image: elastic/filebeat:8.12.0
+    volumes:
+      - ./app/log:/usr/share/filebeat/logs
+      - type: bind
+        source: ./filebeat/filebeat.yml
+        target: /usr/share/filebeat/filebeat.yml
+        read_only: true
+      - filebeat-data:/usr/share/filebeat/data
+    user: root
+    environment:
+      - STRICT_PERMS=false
+      - FILEBEAT_OPTS="--path.config /usr/share/filebeat"
+      - BEAT_STRICT_PERMS=false
+
+  logstash:
+    image: logstash:9.0.1
+    command: -e 'input { beats { port => 5044 } } output { stdout { codec => rubydebug } }'
+    ports:
+      - "5044:5044"
+    environment:
+      - LS_JAVA_OPTS=-Xms512m -Xmx512m
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9600"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  filebeat-data:
